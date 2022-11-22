@@ -3,12 +3,12 @@ using ModelingToolkit
 @variables t
 D = Differential(t)
 
-function Channel(;name)
+function Chan(;name)
     sts = @variables V(t) I(t)
     ODESystem(Equation[],t,sts,[];name=name)
 end
 
-macro Channel(name, ps, ics, eqs)
+macro Chan(name, ps, ics, eqs)
     p_ex = filter( x -> x isa Expr, ps.args)
     p_call_args = if !isempty(p_ex)
         [Expr(:kw, x.args[1], x.args[2]) for x in p_ex if x.head == :(=)]
@@ -47,15 +47,15 @@ macro Channel(name, ps, ics, eqs)
         :name, Expr(:kw, :inherit_parameters, true), call_args...)), body))
 end
 
-function Cell(channels ;name,
+function Cell(chans ;name,
     Iapp = 0., V0=0.)
     sts = @variables V(t)=V0 I(t)
     p = @parameters Iapp=Iapp
     eqs = vcat([
         D(V) ~ -I + Iapp
-        I ~ sum([c.I for c in channels])
+        I ~ sum([c.I for c in chans])
     ],[
-        c.V ~ V for c in channels
+        c.V ~ V for c in chans
     ])
     sys = ODESystem(eqs,t,sts,p;name=name)
     compose(sys, channels)
@@ -71,6 +71,6 @@ end
 
 export ModelingToolkit
 export t, D
-export Channel, @Channel, Cell, CellType, connect_vpre
+export Chan, @Chan, Cell, CellType, connect_vpre
 
 end
