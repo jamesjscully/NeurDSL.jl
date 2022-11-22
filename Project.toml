@@ -1,0 +1,13 @@
+name = "NeurDSL"
+uuid = "ef18f96f-a82d-42cf-99cf-7a9ef903a0d1"
+authors = ["Jack Scully <jamesjscully@gmail.com> and contributors"]
+version = "0.1.0"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
