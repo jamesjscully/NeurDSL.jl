@@ -20,7 +20,7 @@ macro Chan(name, ps, ics, eqs)
         [Expr(:kw, Symbol(x.args[1],0), x.args[2]) for x in v_ex if x.head == :(=)]
     else [] end
     v_assign_args =
-        [x.head==:(=) ? :($(x.args[1])=$(Symbol(x.args[1],0))) : x for x in v_ex]
+        [x.head==:(=) ? :($(x.args[1])(t)=$(Symbol(x.args[1],0))) : :($x(t)) for x in v_ex]
     call_args = union(p_call_args, v_call_args)
     v_assign = if isempty(v_ex)
         :(sts = [])
