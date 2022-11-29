@@ -1,5 +1,6 @@
 module NeurDSL
 using ModelingToolkit
+export ModelingToolkit: NamedTuple
 @variables t
 D = Differential(t)
 
@@ -33,7 +34,7 @@ macro Chan(name, ps, ics, eqs)
             Symbol("@parameters"),LineNumberNode(1), p_assign_args...))
     end
     body = Expr(:block, quote
-        @named channel = Channel()
+        @named channel = Chan()
         @unpack V, I = channel
         $v_assign
         $p_assign
