@@ -59,7 +59,7 @@ function Cell(chans ;name,
         c.V ~ V for c in chans
     ])
     sys = ODESystem(eqs,t,sts,p;name=name)
-    compose(sys, channels)
+    compose(sys, chans)
 end
 
 function CellType(cells; name)
