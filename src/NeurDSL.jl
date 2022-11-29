@@ -1,6 +1,6 @@
 module NeurDSL
 using ModelingToolkit
-export ModelingToolkit: NamedTuple
+export @named
 @variables t
 D = Differential(t)
 
