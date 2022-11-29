@@ -1,6 +1,6 @@
 module NeurDSL
 using ModelingToolkit
-export @named
+export @named, @unpack, DelayParentScope, @variables, @parameters, extend, ODESystem
 @variables t
 D = Differential(t)
 
@@ -70,7 +70,6 @@ function connect_vpre(cell, syns...)
     [syn.Vpre ~ cell.V for syn in syns]
 end
 
-export ModelingToolkit
 export t, D
 export Chan, @Chan, Cell, CellType, connect_vpre
 
