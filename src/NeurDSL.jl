@@ -78,6 +78,6 @@ function sym_connect_vpre(cell1,cell2, names...)
 end
 
 export t, D
-export Chan, @Chan, Cell, CellType, connect_vpre
+export Chan, @Chan, Cell, CellType, connect_vpre, syn_connect_vpre
 
 end
