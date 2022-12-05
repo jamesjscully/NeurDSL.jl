@@ -70,6 +70,13 @@ function connect_vpre(cell, syns...)
     [syn.Vpre ~ cell.V for syn in syns]
 end
 
+function sym_connect_vpre(cell1,cell2, names...)
+    vcat(
+        [getproperty(cell1,name).Vpre ~ cell2.V for name in names],
+        [getproperty(cell2,name).Vpre ~ cell1.V for name in names],
+    )
+end
+
 export t, D
 export Chan, @Chan, Cell, CellType, connect_vpre
 
