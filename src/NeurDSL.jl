@@ -1,6 +1,6 @@
 module NeurDSL
 using ModelingToolkit
-export @named, @unpack, DelayParentScope, @variables, @parameters, extend, ODESystem, structural_simplify
+export @named, @unpack, DelayParentScope, @variables, @parameters, extend, ODESystem, structural_simplify, compose
 @variables t
 D = Differential(t)
 
