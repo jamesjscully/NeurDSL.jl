@@ -1,5 +1,6 @@
 module NeurDSL
 using ModelingToolkit
+MTK = ModelingToolkit
 export @named, @unpack, DelayParentScope, @variables, @parameters, extend, ODESystem, structural_simplify, compose
 @variables t
 D = Differential(t)
@@ -8,6 +9,8 @@ function Chan(;name)
     sts = @variables V(t) I(t)
     ODESystem(Equation[],t,sts,[];name=name)
 end
+
+abstract type InheritParameters end
 
 macro Chan(name, ps, ics, eqs)
     p_ex = filter( x -> x isa Expr, ps.args)
@@ -41,29 +44,38 @@ macro Chan(name, ps, ics, eqs)
     end,
     eqs.args...,
     quote
-        inherit_parameters && @. p = DelayParentScope(p)
         extend(ODESystem(eqs, t, sts, p; name=name), channel)
     end)
-    return esc(Expr(:function, Expr(:call, name, Expr(:parameters,
-        :name, Expr(:kw, :inherit_parameters, true), call_args...)), body))
+    return esc(Expr(:function, Expr(:call, name, Expr(:parameters, :name, call_args...)), body))
 end
 
-function Cell(chans ;name,
-    Iapp = 0., V0=0.)
-    sts = @variables V(t)=V0 I(t)
-    p = @parameters Iapp=Iapp
-    eqs = vcat([
-        D(V) ~ -I + Iapp
-        I ~ sum([c.I for c in chans])
-    ],[
-        c.V ~ V for c in chans
-    ])
-    sys = ODESystem(eqs,t,sts,p;name=name)
-    compose(sys, chans)
+function Cell(;name, V0=-40.)
+    sts = @variables V(t)=V0
+    ODESystem([],t,sts,[];name=name)
 end
 
-function CellType(cells; name)
-    compose(ODESystem(Equation[],t,[],[];name=name), cells)
+function CellType(chans, cells; name)
+    # this makes the channels no pars for the cell level
+    _chans = ODESystem[]
+    for chan in chans
+        eqs = ModelingToolkit.get_eqs(chan)
+        sts = ModelingToolkit.get_states(chan)
+    end
+    # this makes the channels containing parameters only for the celltype level
+    for chan in chans
+        MTK.@set! chan.eqs = Symbolics.Arr([])
+        MTK.@set! chan.states = Symbolics.Arr([])
+    end
+
+    map!(cells, cells) do c
+        @unpack V = c
+        ceqs = vcat(
+            [D(V) ~ sum([chan.I for chan in _chans])],
+            [chan.V~V for chan in _chans])
+        compose(cell, _chans)
+    end
+
+    compose(ODESystem(eqs,t,[],ps;name=name), cells)
 end
 
 function connect_vpre(cell, syns...)
