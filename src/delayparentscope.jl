@@ -1,5 +1,6 @@
 using ModelingToolkit
-using ModelingToolkit: unwrap, Symbolic, value, rename, getname, @set, @set!
+using ModelingToolkit: unwrap, Symbolic, value, rename, getname, @set, get_systems, get_ps, get_states
+
 using ModelingToolkit: AbstractSystem, LocalScope, SymScope, ParentScope, DelayParentScope
 import ModelingToolkit:compose
 import ModelingToolkit.Symbolics: setmetadata, getmetadata
@@ -39,36 +40,41 @@ struct STSys
     parent
 end
 
-function update_scope_tracker(tracker::ScopeTracker{S,P}, name, i=0) where {S<:Union{LocalScope,GlobalScope}, P}
+function update_scope_tracker(tracker::ScopeTracker{S,P}, name) where {S<:Union{LocalScope,GlobalScope}, P}
     tracker
 end
 
-function update_scope_tracker(tracker::ScopeTracker{S,P}, name, i=0) where {S, P}
-    update_scope_tracker(T([name]),scope.parent, name, i+1)
+function update_scope_tracker(tracker::ScopeTracker{S,P}, name) where {S<:ParentScope, P}
+    ScopeTracker(tracker.scope.parent, [name; tracker.path], tracker.parent)
 end
-function update_scope_tracker(tracker, scope::DelayParentScope, i=0)
+
+function update_scope_tracker(tracker::ScopeTracker{S,P}) where {S<:DelayParentScope, P}
     N = scope.N
     if N == 0
-        update_scope_tracker(ScopeDatum(tracker.parent, [name; tracker.name]), scope.parent, i+1)  
+        ScopeTracker(tracker.scope.parent, [name; tracker.path], tracker.parent)
     else
-        update_scope_tracker(ScopeDatum(tracker, [name]), DelayParentScope(scope.parent,N-1), i+1)
+        ScopeTracker(S(tracker.scope.parent,tracker.scope.n-1), [name; tracker.path], tracker)
     end
 end
-
-track_scope(STVar, ParentScope(ParentScope(LocalScope())), :s1, 0)
-
-import ModelingToolkit: compose
-using ModelingToolkit: get_systems, get_ps, get_states
-using Base.Cartesian
+tracker = ScopeTracker(ParentScope(LocalScope()), [:e], STPar())
+update_scope_tracker(tracker, :s1)
+name = :s1
+ScopeTracker(tracker.scope.parent, [name; tracker.path], tracker.parent)
 
 function compose(sys::AbstractSystem, systems::AbstractArray; name = nameof(sys))
+    
+    @set! sys.name = name
+
     nsys = length(systems)
     nsys == 0 && return sys
     
     #data from nested subsystemsystems
-    scope_trackers = getmetadata.(systems, ScopeTracker, Ref([]))
+    tracker_arrays = map(systems) do s
+        getmetadata(s, ScopeTracker, ScopeTracker[])
+    end
+        
     #data from subsystems
-    for s in systems
+    for (i,s) in enumerate(systems)
         arr = []
         for p in get_ps(s)
             scope = getmetadata(p,SymScope,LocalScope())
@@ -78,77 +84,49 @@ function compose(sys::AbstractSystem, systems::AbstractArray; name = nameof(sys)
         for u in get_states(s)
             scope = getmetadata(u,SymScope,LocalScope())
             scope isa LocalScope && break
-            push!(arr, ScopeTracker(scope, [nameof(u)], STPar))
+            push!(arr, ScopeTracker(scope, [nameof(u)], STVar))
         end
-        scope_trackers = [scope_trackers; arr]
+        return arr
+        tracker_arrays[i] = [tracker_arrays[i]; arr]
     end
-    
-    @set! sys.name = name
 
-    if all(isempty, scope_trackers)   
+    return tracker_arrays
+
+    if all(isempty, tracker_arrays)
         @set! sys.systems = [get_systems(sys); systems]
         return sys
     end
+
+    return tracker_arrays
     
-    new_states = []
-    new_u = []
-    new_systems = []
-    for (i,trackarr) in scope_trackers
+    for (i,trackers) in enumerate(tracker_arrays)
         s = systems[i]
-        for d in trackarr
-            if d.counter == 1
-                _s = s
-                for i = 1:(length(d.s)-1)
-                    j = findfirst(e -> nameof(e) == d.name, _syss)
-                    isnothing(j) && throw(ErrorException("the metadata for variable scoping does not match the system structure"))
-                    _s = _syss[findfirst(e -> nameof(e) == d.name, _s)]
-                    _syss = get_systems(_sys)
-                end
-
-                if d.type == :ps
-                    N = length(d.s)
-                    @nexprs
-                    ps = get_ps(sys)
-                    _p = ps[d.idxs[end]]
-                    p = nameof(_p) == d.name ? _p : findfirst(e -> nameof(e) == d.name, ps)
-                    push!(new_p, p)
-                elseif d.type == :states
-                    sts = get_states(sys)
-                    _u = sts[d.idxs[end]]
-                    u = nameof(_u) == d.name ? _u : findfirst(e -> nameof(e) == d.name, sts)
-                    push!(new_u, u)
-                end
-            end
-        #update scope_trackers
+        update_by_tracker!.(tracker, s)
     end
 
+    @set! sys.systems = [get_systems(sys); systems]
+    return sys
+end
 
-    for (i,s) in enumerate(systems)
-        ps = get_ps(s)
-        sts = get_states(s)
-        pmeta = getmetadata.(ps, SymScope, Ref(LocalScope()))
-        vmeta = getmetadata.(sts, SymScope, Ref(LocalScope()))
-        plevels = count_scope_level.(pmeta)
-        vlevels = count_scope_level.(vmeta)
-        oldlvls = getmetadata(s,ScopeLevels,[Int64[],Int64[]])
-        push!(levels[1], (oldlvls[1].-1)...)
-        push!(levels[1], plevels...)
-        push!(levels[2], (oldlvls[2].-1)...)
-        push!(levels[2], vlevels...)
+function update_by_tracker!(tracker:ScopeTracker{S,P}, s) where {S<:LocalScope, P<:STPar}
+    @set! s.parameters = deleteat!
+end
+function update_by_tracker!(s,tracker:ScopeTracker{S,P}) where {S, P<:STVar}
+
+end
+
+function update_by_tracker!(s,tracker::ScopeTracker{S,P}) where {S<:LocalScope,P}
+    if length(tracker.path) == 1
+        i = findfirst(x -> nameof(tracker.path[1]))
+
+        @set! s.systems
+        return update_scope_subsystem!(ODESystem)
     end
-
-    if all(x -> x[3] != 1, Iterators.flatten(levels))
-        ps_lvls_to_update = filter(x -> x[3] == 0, levels[1])
-        vs_lvls_to_update = filter(x -> x[3] == 0, levels[2])
-    
-        for (i,j,lvl) in ps_lvls_to_update
-            _sys = systems[i]
-            p = get_ps(_sys)[j]
-            deleteat!()
-        end
-    
-    
-        return sys
+end
+function update_by_tracker!(s,tracker::ScopeTracker{S,P}) where {S<:ParentScope,P}
+    nothing
+end
+function update_by_tracker!(s,tracker::ScopeTracker{S,P}) where {S<:LocalScope,P}
 
 end
 
@@ -162,7 +140,10 @@ p = [a
     GlobalScope(f)]
 
 level0 = ODESystem(Equation[], t, [], p; name = :level0)
+
+level0
 level1 = ODESystem(Equation[], t, [], []; name = :level1) ∘ level0
+
 level2 = ODESystem(Equation[], t, [], []; name = :level2) ∘ level1
 level3 = ODESystem(Equation[], t, [], []; name = :level3) ∘ level2
 
