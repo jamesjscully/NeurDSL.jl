@@ -1,7 +1,7 @@
 using ModelingToolkit
-using ModelingToolkit: unwrap, Symbolic, value, rename, getname, @set, get_systems, get_ps, get_states
+using ModelingToolkit: unwrap, Symbolic, value, rename, getname, @set, @set!, get_systems, get_ps, get_states
 
-using ModelingToolkit: AbstractSystem, LocalScope, SymScope, ParentScope, DelayParentScope
+using ModelingToolkit: AbstractSystem, LocalScope, SymScope, ParentScope, DelayParentScope, get_var_to_name
 import ModelingToolkit:compose
 import ModelingToolkit.Symbolics: setmetadata, getmetadata
 
@@ -61,6 +61,8 @@ update_scope_tracker(tracker, :s1)
 name = :s1
 ScopeTracker(tracker.scope.parent, [name; tracker.path], tracker.parent)
 
+[getmetadata(p,SymScope,LocalScope()) for p in get_ps(level0)]
+
 function compose(sys::AbstractSystem, systems::AbstractArray; name = nameof(sys))
     
     @set! sys.name = name
@@ -78,19 +80,16 @@ function compose(sys::AbstractSystem, systems::AbstractArray; name = nameof(sys)
         arr = []
         for p in get_ps(s)
             scope = getmetadata(p,SymScope,LocalScope())
-            scope isa LocalScope && break
+            scope isa LocalScope ||
             push!(arr, ScopeTracker(scope, [nameof(p)], STPar))
         end
         for u in get_states(s)
             scope = getmetadata(u,SymScope,LocalScope())
-            scope isa LocalScope && break
+            scope isa LocalScope ||
             push!(arr, ScopeTracker(scope, [nameof(u)], STVar))
         end
-        return arr
         tracker_arrays[i] = [tracker_arrays[i]; arr]
     end
-
-    return tracker_arrays
 
     if all(isempty, tracker_arrays)
         @set! sys.systems = [get_systems(sys); systems]
@@ -141,7 +140,6 @@ p = [a
 
 level0 = ODESystem(Equation[], t, [], p; name = :level0)
 
-level0
 level1 = ODESystem(Equation[], t, [], []; name = :level1) ∘ level0
 
 level2 = ODESystem(Equation[], t, [], []; name = :level2) ∘ level1
