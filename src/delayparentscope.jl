@@ -111,15 +111,17 @@ function update_by_tracker!(tracker::ScopeTracker{S,P}, s::T) where {S<:LocalSco
     idxs = Int64[]
     for name in 1:(length(path)-1)
         i = findfirst(x -> nameof(x) == name, systems)
-        _s = systems[i]
-        systems = get_systems(_s)
         push!(idxs,i)
+        _s = systems[i]
+        @nloops
+        systems = get_systems(_s)
     end
     ps = get_ps(systems)
     name = path[end]
     i = findfirst(x -> nameof(x) == name, ps)
     p = ps[i]
-    
+
+    T = 
     new_s = @set
     for name
     push!(idxs, i)
